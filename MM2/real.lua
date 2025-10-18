@@ -1,3 +1,6 @@
+-- MM2 Script Hub V1.4 (WindUI fixed: safe asset folder)
+-- Author: Yuki
+
 -- Load WindUI safely
 local success, WindUI = pcall(function()
     print("Attempting to load WindUI...")
@@ -14,15 +17,34 @@ end
 
 print("Script running on client at: " .. os.date("%H:%M:%S %d/%m/%Y"))
 
+-- Services / flags
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local plr = Players.LocalPlayer
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local windowSize = isMobile and UDim2.fromOffset(360, 420) or UDim2.fromOffset(600, 480)
 
+-- =========================
+-- WindUI SAFE FOLDER FIX
+-- =========================
+-- Never leave Folder = "" and never start with "/"
+local ASSET_ROOT = "WindUI"          -- top-level folder (no leading slash)
+local APP_FOLDER  = ASSET_ROOT .. "/MM2"
+
+pcall(function()
+    if typeof(isfolder) == "function" and not isfolder(ASSET_ROOT) then makefolder(ASSET_ROOT) end
+    if typeof(isfolder) == "function" and not isfolder(APP_FOLDER)  then makefolder(APP_FOLDER)  end
+end)
+
+-- Create Window
 local Window = WindUI:CreateWindow({
-    Title = "MM2 Script Hub V1.5",
+    Title = "MM2 Script Hub V1.4",
     Icon = "skull",
     Author = "Made by Yuki",
-    Folder = "",
+    Folder = APP_FOLDER,             -- << fixed: valid relative folder
     Size = windowSize,
     Transparent = false,
     Theme = "Dark",
@@ -36,23 +58,20 @@ local Window = WindUI:CreateWindow({
 
 -- Tabs
 local Tabs = {
-    AutoFarmTab = Window:Tab({ Title = "AutoFarm", Icon = "coins" }),
-    AntiAFKTab = Window:Tab({ Title = "Anti-AFK", Icon = "moon" }),
-    AntiStealTab = Window:Tab({ Title = "Anti-Steal", Icon = "shield" }),
+    AutoFarmTab  = Window:Tab({ Title = "AutoFarm",  Icon = "coins" }),
+    AntiAFKTab   = Window:Tab({ Title = "Anti-AFK",  Icon = "moon"  }),
+    AntiStealTab = Window:Tab({ Title = "Anti-Steal",Icon = "shield"})
 }
 
 -- Header
 Tabs.AutoFarmTab:Paragraph({
-    Title = '<font color="#FFD700">MM2 Script Hub</font> <font color="#00CFFF">| AF UPDATE V1.5!</font>',
+    Title = '<font color="#FFD700">MM2 Script Hub</font> <font color="#00CFFF">| NEW UPDATE 1.4!</font>',
     Desc = "💻 Made by Yuki",
     Image = "zap",
     RichText = true,
 })
 
 -- AutoFarm Logic
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local plr = game.Players.LocalPlayer
 local character = plr.Character or plr.CharacterAdded:Wait()
 local humPart = character:WaitForChild("HumanoidRootPart")
 plr.CharacterAdded:Connect(function(char)
@@ -93,15 +112,19 @@ Tabs.AutoFarmTab:Toggle({
                 end
             end)
 
-            -- Main autofarm loop (closest coin)
+            -- Main autofarm loop (closest coin/ball within 250 studs)
             task.spawn(function()
                 while getgenv().farm do
                     character = plr.Character or plr.CharacterAdded:Wait()
-                    humPart = character:FindFirstChild("HumanoidRootPart")
+                    humPart = character and character:FindFirstChild("HumanoidRootPart") or nil
                     if humPart then
                         local closest, shortest = nil, math.huge
                         for _, obj in ipairs(workspace:GetDescendants()) do
-                            if obj:IsA("BasePart") and obj.Name == "Coin_Server" and obj:GetAttribute("CoinID") == "BeachBall" and not visited[obj] then
+                            if obj:IsA("BasePart")
+                                and obj.Name == "Coin_Server"
+                                and obj:GetAttribute("CoinID") == "BeachBall"
+                                and not visited[obj]
+                            then
                                 local dist = (obj.Position - humPart.Position).Magnitude
                                 if dist < shortest and dist <= 250 then
                                     closest = obj
@@ -117,7 +140,12 @@ Tabs.AutoFarmTab:Toggle({
                                     p.CanCollide = false
                                 end
                             end
-                            local tween = TweenService:Create(humPart, TweenInfo.new(shortest / speed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(closest.Position)})
+                            local travelTime = math.max(0.05, shortest / speed)
+                            local tween = TweenService:Create(
+                                humPart,
+                                TweenInfo.new(travelTime, Enum.EasingStyle.Linear),
+                                { CFrame = CFrame.new(closest.Position) }
+                            )
                             tween:Play()
                             tween.Completed:Wait()
                             collected += 1
@@ -168,11 +196,11 @@ Tabs.AntiAFKTab:Button({
     Callback = function()
         local GC = getconnections or get_signal_cons
         if GC then
-            for _,v in pairs(GC(plr.Idled)) do
+            for _, v in pairs(GC(plr.Idled)) do
                 if v.Disable then v:Disable() elseif v.Disconnect then v:Disconnect() end
             end
         else
-            local vu = cloneref(game:GetService("VirtualUser"))
+            local vu = cloneref and cloneref(game:GetService("VirtualUser")) or game:GetService("VirtualUser")
             plr.Idled:Connect(function()
                 vu:CaptureController()
                 vu:ClickButton2(Vector2.new())
